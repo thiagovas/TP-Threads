@@ -1,9 +1,25 @@
 #ifndef __DCCTHREAD_HEADER__
 #define __DCCTHREAD_HEADER__
 
-typedef struct dccthread dccthread_t;
+#include <ucontext.h>
+#include <signal.h>
 
+#define THREAD_QUEUE_SIZE 501
 #define DCCTHREAD_MAX_NAME_SIZE 256
+
+
+typedef struct dccthread {
+  char* name;
+  ucontext_t context;
+} dccthread_t;
+
+/* Variables that keep the initial and final position of the queue */
+int THREAD_QUEUE_INITIAL_POS, THREAD_QUEUE_FINAL_POS;
+
+/* Queue that keeps the threads ready to execute */
+dccthread_t *thread_ready_queue;
+
+
 
 /* `dccthread_init` initializes any state necessary for the
  * threadling library and starts running `func`.  this function

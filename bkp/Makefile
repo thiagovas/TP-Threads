@@ -10,8 +10,11 @@ tests:
 dccthread:
 	$(CC) -c dccthread.c -o dccthread.o -Wall
 
+run:
+	./main
+
 clean:
 	rm -f *~
 	rm -rf *.o
 	rm -f main
-	$(foreach var,$(NUM_TESTS),rm -f test$(var);)
+	$(foreach var,$(NUM_TESTS),rm test$(var);)

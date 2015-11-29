@@ -1,23 +1,20 @@
 #ifndef __DCCTHREAD_HEADER__
 #define __DCCTHREAD_HEADER__
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <ucontext.h>
 #include <signal.h>
 
 #define THREAD_QUEUE_SIZE 501
 #define DCCTHREAD_MAX_NAME_SIZE 256
+#define STACK_SIZE 501
 
 
 typedef struct dccthread {
-  char* name;
+  const char* name;
   ucontext_t context;
 } dccthread_t;
-
-/* Variables that keep the initial and final position of the queue */
-int THREAD_QUEUE_INITIAL_POS, THREAD_QUEUE_FINAL_POS;
-
-/* Queue that keeps the threads ready to execute */
-dccthread_t *thread_ready_queue;
 
 
 
@@ -31,7 +28,7 @@ void dccthread_init(void (*func)(int), int param) __attribute__((noreturn));
  * function `func` with parameter `param`.  `name` will be used to
  * identify the new thread. */
 dccthread_t * dccthread_create(const char *name,
-		void (*func)(int ), int param);
+		void (*func)(int), int param);
 
 /* `dccthread_yield` will yield the CPU (from the current thread to
  * another). */

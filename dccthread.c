@@ -15,6 +15,8 @@ dccthread_t *thread_ready_queue[THREAD_QUEUE_SIZE];
 /* The two main threads of the program, initialized at the init function */
 ucontext_t manager, exiter;
 
+//char temp_stack[SIGSTKSZ];
+
 
 
 /**************** NOT LISTED ****************/
@@ -32,26 +34,19 @@ int is_thread_queue_full()
 
 void nextThread()
 {
-  fflush(stdout);
-  
-  fprintf(stdout, "Running: nextThread\n");
-  fflush(stdout);
-  /*  if(is_thread_queue_empty()) return;
+		printf("Running: nextThread\n");
+    if(is_thread_queue_empty()) return;
     current_thread++;
     current_thread%=THREAD_QUEUE_SIZE;
-    printf("current_thread = %d\tEND = %d\n", current_thread, THREAD_QUEUE_FINAL_POS);
-    printf("Rewriting manager\n");
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
-    printf("Setting Manager -> %s\n", thread_ready_queue[current_thread]->name);
-    setcontext(&(thread_ready_queue[current_thread]->context));
-  */
+    setcontext(&(thread_ready_queue[current_thread]->context)); 
 }
 
 void setStackProperties(ucontext_t *context)
 {
-  context->uc_stack.ss_sp = malloc(STACK_SIZE);
-  context->uc_stack.ss_size = STACK_SIZE;
+  context->uc_stack.ss_sp = malloc(SIGSTKSZ);
+  context->uc_stack.ss_size = SIGSTKSZ;
   context->uc_stack.ss_flags = 0;
 }
 
@@ -66,10 +61,14 @@ void dccthread_init(void (*func)(int), int param)
 {
   THREAD_QUEUE_FINAL_POS=0;
   current_thread=-1;
-  memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
+  //memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
   
+	char s1[STACK_SIZE];
+	char s2[STACK_SIZE];
+
   getcontext(&manager);
   getcontext(&exiter);
+
   manager.uc_link = &exiter;
   setStackProperties(&manager);
   setStackProperties(&exiter);
@@ -95,7 +94,6 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
   thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = name;
   
   dccthread_t *ret = thread_ready_queue[THREAD_QUEUE_FINAL_POS];
-  printf("Added \"%s\" at %d\n", thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name, THREAD_QUEUE_FINAL_POS);
   THREAD_QUEUE_FINAL_POS++;
   THREAD_QUEUE_FINAL_POS%=THREAD_QUEUE_SIZE;
   

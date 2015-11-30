@@ -4,16 +4,16 @@
 
 
 /* Variable that keeps the index of the thread running currently. */
-int current_thread=0;
+int current_thread;
 
 /* Variables that keep the final position of the queue */
-int THREAD_QUEUE_FINAL_POS=0;
+int THREAD_QUEUE_FINAL_POS;
 
 /* Queue that keeps the threads ready to execute */
 dccthread_t *thread_ready_queue[THREAD_QUEUE_SIZE];
 
 /* The two main threads of the program, initialized at the init function */
-ucontext_t manager, principal;
+ucontext_t manager, exiter;
 
 
 
@@ -32,16 +32,20 @@ int is_thread_queue_full()
 
 void nextThread()
 {
-    printf("Running: nextThread()\n");
-    printf("Empty? %d\n", is_thread_queue_empty());
-    if(is_thread_queue_empty()) return;
+  fflush(stdout);
+  
+  fprintf(stdout, "Running: nextThread\n");
+  fflush(stdout);
+  /*  if(is_thread_queue_empty()) return;
     current_thread++;
     current_thread%=THREAD_QUEUE_SIZE;
     printf("current_thread = %d\tEND = %d\n", current_thread, THREAD_QUEUE_FINAL_POS);
-    printf("Rewriting principal\n");
-    makecontext(&principal, nextThread, 0);
-    printf("Setting Principal -> %s\n", thread_ready_queue[current_thread]->name);
+    printf("Rewriting manager\n");
+    getcontext(&manager);
+    makecontext(&manager, nextThread, 0);
+    printf("Setting Manager -> %s\n", thread_ready_queue[current_thread]->name);
     setcontext(&(thread_ready_queue[current_thread]->context));
+  */
 }
 
 void setStackProperties(ucontext_t *context)
@@ -63,20 +67,18 @@ void dccthread_init(void (*func)(int), int param)
   THREAD_QUEUE_FINAL_POS=0;
   current_thread=-1;
   memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
-
+  
   getcontext(&manager);
-  getcontext(&principal);
-  manager.uc_link = NULL;
+  getcontext(&exiter);
+  manager.uc_link = &exiter;
   setStackProperties(&manager);
+  setStackProperties(&exiter);
   
-  
-  principal.uc_link = &manager;
-  setStackProperties(&principal);
-  makecontext(&principal, nextThread, 0);
+  makecontext(&manager, nextThread, 0);
   dccthread_create("Main", func, param);
-  printf("Swapping Manager -> Principal\n");
-  setcontext(&principal);
+  swapcontext(&exiter, &manager);
   printf("UE, voltou?\n");
+  exit(EXIT_SUCCESS);
 }
 
 
@@ -85,13 +87,12 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
   if(is_thread_queue_full())
     return NULL;
   
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS] = (dccthread_t*) malloc(sizeof(dccthread_t));
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS] = (dccthread_t *) malloc(sizeof(dccthread_t *));
   getcontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context.uc_link = &principal;
-  setStackProperties(&thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context);
-  makecontext(&thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context, (void (*) (void)) func, 1, param);
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = malloc(sizeof(char)*(strlen(name) + 1));
-  strcpy(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name, name);
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context.uc_link = &manager;
+  setStackProperties(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
+  makecontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context), (void (*) (void)) func, 1, param);
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = name;
   
   dccthread_t *ret = thread_ready_queue[THREAD_QUEUE_FINAL_POS];
   printf("Added \"%s\" at %d\n", thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name, THREAD_QUEUE_FINAL_POS);
@@ -109,7 +110,7 @@ void dccthread_yield(void)
   THREAD_QUEUE_FINAL_POS++;  THREAD_QUEUE_FINAL_POS%=THREAD_QUEUE_SIZE;
   
   printf("Swapping %d -> Principal\n", current_thread);
-  swapcontext(&(thread_ready_queue[old_index]->context), &principal);
+  swapcontext(&(thread_ready_queue[old_index]->context), &manager);
 }
 
 void dccthread_exit(void)

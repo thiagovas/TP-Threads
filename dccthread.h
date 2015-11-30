@@ -19,7 +19,7 @@
 
 
 typedef struct dccthread {
-  const char* name;
+  const char* name, *waiting_for;
   ucontext_t context;
 } dccthread_t;
 

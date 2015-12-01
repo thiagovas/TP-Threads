@@ -15,11 +15,12 @@ dccthread_t *thread_ready_queue[THREAD_QUEUE_SIZE];
 /* The two main threads of the program, initialized at the init function */
 ucontext_t manager, exiter;
 
-//char temp_stack[SIGSTKSZ];
+/* Variable used to create new thread id's */
+int neueId;
 
 
 
-/**************** NOT LISTED ****************/
+/******************* NOT LISTED *******************/
 
 /* Just returns 1 if the queue is empty or 0 otherwise. */
 int is_thread_queue_empty()
@@ -33,6 +34,8 @@ int is_thread_queue_full()
   return current_thread == (THREAD_QUEUE_FINAL_POS+1)%THREAD_QUEUE_SIZE;
 }
 
+
+/* This function send the current thread to the end of the queue. */
 int send_to_the_end()
 {
   thread_ready_queue[THREAD_QUEUE_FINAL_POS] = thread_ready_queue[current_thread];
@@ -43,13 +46,15 @@ int send_to_the_end()
 	return old_index;
 }
 
+
+/* This function releases every thread wating for the [index] thread */
 void free_waitings(int index)
 {
-	int i=(index+1)%THREAD_QUEUE_SIZE;
+	int i=index;
 	while(i != THREAD_QUEUE_FINAL_POS)
 	{
-		if(strcmp(thread_ready_queue[i]->waiting_for, thread_ready_queue[index]->name) == 0)
-			thread_ready_queue[i]->waiting_for = "\0";
+		if(thread_ready_queue[i]->waiting_for == thread_ready_queue[index]->id)
+			thread_ready_queue[i]->waiting_for = -1;
 		i=(i+1)%THREAD_QUEUE_SIZE;
 	}
 }
@@ -63,11 +68,12 @@ void nextThread()
 		{
 			current_thread++;
 			current_thread%=THREAD_QUEUE_SIZE;
-			if(strcmp(thread_ready_queue[current_thread]->waiting_for, "\0") != 0)
+      printf("%d %d\n", current_thread, THREAD_QUEUE_FINAL_POS);
+      printf("%s waiting for %d\n", thread_ready_queue[current_thread]->name, thread_ready_queue[current_thread]->waiting_for);
+			if(thread_ready_queue[current_thread]->waiting_for != -1)
 				send_to_the_end();
 			else break;
 		}
-		
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
     setcontext(&(thread_ready_queue[current_thread]->context)); 
@@ -80,14 +86,16 @@ void setStackProperties(ucontext_t *context)
   context->uc_stack.ss_flags = 0;
 }
 
+
+/* This method frees every chunk of memory allocated for the [index] thread. */
 void free_dcc_thread(int index)
 {
-	free(thread_ready_queue[index]->context.uc_stack.ss_sp);
 	free(thread_ready_queue[index]);
+  thread_ready_queue[index]=NULL;
 }
 
-
-/**************** END - NOT LISTED ****************/
+  
+/******************* END - NOT LISTED *******************/
 
 
 
@@ -96,7 +104,7 @@ void free_dcc_thread(int index)
 
 void dccthread_init(void (*func)(int), int param)
 {
-  THREAD_QUEUE_FINAL_POS=0;
+  THREAD_QUEUE_FINAL_POS=neueId=0;
   current_thread=-1;
   memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
   
@@ -126,7 +134,11 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
   setStackProperties(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
   makecontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context), (void (*) (void)) func, 1, param);
   thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = name;
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->waiting_for="\0";
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->waiting_for=-1;
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->id = neueId;
+  
+  neueId++;
+  if(neueId < 0) neueId=0;
 
   dccthread_t *ret = thread_ready_queue[THREAD_QUEUE_FINAL_POS];
   THREAD_QUEUE_FINAL_POS++;
@@ -138,30 +150,29 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
 void dccthread_yield(void)
 {
   int old_index = send_to_the_end();
-  printf("Swapping %d -> Principal\n", current_thread);
+  printf("Swapping %d -> Principal\n", thread_ready_queue[old_index]->id);
   swapcontext(&(thread_ready_queue[old_index]->context), &manager);
 }
 
 void dccthread_exit(void)
 {
+  printf("%d exited\n", thread_ready_queue[current_thread]->id);
 	free_waitings(current_thread);
 	free_dcc_thread(current_thread);
-	current_thread++;  current_thread%=THREAD_QUEUE_SIZE;
-	setcontext(&manager);
+  setcontext(&manager);
 }  
 
 void dccthread_wait(dccthread_t *tid)
 {
 	if(tid==NULL)
 	{
-		perror("NULL pointer on dccthread_wait function\n");
+		printf("NULL pointer on dccthread_wait function\n");
 		exit(EXIT_FAILURE);
 	}
 	
 	int index = send_to_the_end();
-	thread_ready_queue[index]->waiting_for = tid->name;
+  thread_ready_queue[index]->waiting_for = tid->id;
 	swapcontext(&(thread_ready_queue[index]->context), &manager);
-	thread_ready_queue[index]->waiting_for = "\0";
 }
 
 void dccthread_sleep(struct timespec ts)

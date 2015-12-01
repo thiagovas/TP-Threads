@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <stdio.h>
 #include <limits.h>
+#include <ctype.h>
 
 
 #define THREAD_QUEUE_SIZE 501
@@ -19,7 +20,8 @@
 
 
 typedef struct dccthread {
-  const char* name, *waiting_for;
+  int id, waiting_for;
+  const char* name;
   ucontext_t context;
 } dccthread_t;
 

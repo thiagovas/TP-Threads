@@ -69,7 +69,6 @@ void nextThread()
 			current_thread++;
 			current_thread%=THREAD_QUEUE_SIZE;
       if(is_thread_queue_empty()) return;
-      printf("%d %d\n", current_thread, THREAD_QUEUE_FINAL_POS);
       printf("%s waiting for %d\n", thread_ready_queue[current_thread]->name, thread_ready_queue[current_thread]->waiting_for);
 			if(thread_ready_queue[current_thread]->waiting_for != -1)
 				send_to_the_end();
@@ -80,6 +79,7 @@ void nextThread()
     setcontext(&(thread_ready_queue[current_thread]->context)); 
 }
 
+/* Method that initializes the stack of a context */
 void setStackProperties(ucontext_t *context)
 {
   context->uc_stack.ss_sp = malloc(SIGSTKSZ);
@@ -95,6 +95,7 @@ void free_dcc_thread(int index)
   thread_ready_queue[index]=NULL;
 }
 
+/* This function checks if the [id] thread is done running. */
 int is_thread_done(int id)
 {
   int i=current_thread;
@@ -129,7 +130,6 @@ void dccthread_init(void (*func)(int), int param)
   makecontext(&manager, nextThread, 0);
   dccthread_create("Main", func, param);
   swapcontext(&exiter, &manager);
-  printf("UE, voltou?\n");
   exit(EXIT_SUCCESS);
 }
 
@@ -163,7 +163,7 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
 void dccthread_yield(void)
 {
   int old_index = send_to_the_end();
-  printf("Swapping %d -> Principal\n", thread_ready_queue[old_index]->id);
+  printf("Swapping %d -> Manager\n", thread_ready_queue[old_index]->id);
   swapcontext(&(thread_ready_queue[old_index]->context), &manager);
 }
 
@@ -204,7 +204,5 @@ const char *dccthread_name(dccthread_t *tid)
 {
   return tid->name;
 }
-
-
 
 

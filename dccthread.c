@@ -68,6 +68,7 @@ void nextThread()
 		{
 			current_thread++;
 			current_thread%=THREAD_QUEUE_SIZE;
+      if(is_thread_queue_empty()) return;
       printf("%d %d\n", current_thread, THREAD_QUEUE_FINAL_POS);
       printf("%s waiting for %d\n", thread_ready_queue[current_thread]->name, thread_ready_queue[current_thread]->waiting_for);
 			if(thread_ready_queue[current_thread]->waiting_for != -1)
@@ -94,6 +95,16 @@ void free_dcc_thread(int index)
   thread_ready_queue[index]=NULL;
 }
 
+int is_thread_done(int id)
+{
+  int i=current_thread;
+  while(i != THREAD_QUEUE_FINAL_POS)
+  {
+    if(thread_ready_queue[i]->id == id) return 0;
+    i=(i+1)%THREAD_QUEUE_SIZE;
+  }
+  return 1;
+}
   
 /******************* END - NOT LISTED *******************/
 
@@ -128,6 +139,8 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
   if(is_thread_queue_full())
     return NULL;
   
+  if(thread_ready_queue[THREAD_QUEUE_FINAL_POS] != NULL)
+    free_dcc_thread(THREAD_QUEUE_FINAL_POS);
   thread_ready_queue[THREAD_QUEUE_FINAL_POS] = (dccthread_t *) malloc(sizeof(dccthread_t *));
   getcontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
   thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context.uc_link = &manager;
@@ -158,7 +171,7 @@ void dccthread_exit(void)
 {
   printf("%d exited\n", thread_ready_queue[current_thread]->id);
 	free_waitings(current_thread);
-	free_dcc_thread(current_thread);
+	//free_dcc_thread(current_thread);
   setcontext(&manager);
 }  
 
@@ -169,8 +182,11 @@ void dccthread_wait(dccthread_t *tid)
 		printf("NULL pointer on dccthread_wait function\n");
 		exit(EXIT_FAILURE);
 	}
-	
-	int index = send_to_the_end();
+  
+  printf("Asking %d to wait for %d\n", thread_ready_queue[current_thread]->id, tid->id);
+	if(is_thread_done(tid->id))
+    return;
+  int index = send_to_the_end();
   thread_ready_queue[index]->waiting_for = tid->id;
 	swapcontext(&(thread_ready_queue[index]->context), &manager);
 }

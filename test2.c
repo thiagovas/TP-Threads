@@ -6,7 +6,7 @@
 void f1(void *data)
 {
     dccthread_t *tid = dccthread_self();
-    char *name = dccthread_name(tid);
+    const char *name = dccthread_name(tid);
     int i=0;
 		for(i = 0; i < 3; i++) {
         printf("thread %s on iteration %d\n", name, i);

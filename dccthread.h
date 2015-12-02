@@ -1,6 +1,7 @@
 #ifndef __DCCTHREAD_HEADER__
 #define __DCCTHREAD_HEADER__
 
+#include <assert.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>

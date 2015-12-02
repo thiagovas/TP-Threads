@@ -1,14 +1,14 @@
 CC=gcc
-NUM_TESTS=1 2
+NUM_TESTS=1 2 3
 
 build: dccthread tests
 
 
 tests:
-	$(foreach var,$(NUM_TESTS),$(CC) test$(var).c dccthread.o -o test$(var) -Wall;)
+	$(foreach var,$(NUM_TESTS),$(CC) test$(var).c dccthread.o -o test$(var) -Wall -lrt;)
 
 dccthread:
-	$(CC) -c dccthread.c -o dccthread.o -Wall
+	$(CC) -c dccthread.c -o dccthread.o -Wall -lrt
 
 clean:
 	rm -f *~

@@ -19,6 +19,15 @@ ucontext_t manager, exiter;
 int neueId;
 
 
+/* TIMER VARIABLES */
+  struct sigevent timer_event;
+  struct sigaction timerAction, oldTimerAction;
+  struct sigaction oldTimerAction;
+  struct itimerspec deltaTime;
+  timer_t timer;
+/* END - TIMER VARIABLES */
+
+
 
 /******************* NOT LISTED *******************/
 
@@ -34,6 +43,41 @@ int is_thread_queue_full()
   return current_thread == (THREAD_QUEUE_FINAL_POS+1)%THREAD_QUEUE_SIZE;
 }
 
+/* Method that blocks interrupts */
+void blockInterrupts()
+{
+  sigset_t signal_set;
+  sigaddset(&signal_set, SIGRTMIN);
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
+}
+
+/* This method initialized the timer */
+void init_timer()
+{
+  timer_event.sigev_notify = SIGEV_SIGNAL;
+  timer_event.sigev_signo = SIGRTMIN;
+  timer_create(CLOCK_PROCESS_CPUTIME_ID, &timer_event, &timer);
+
+  timerAction.sa_handler = (void (*)())dccthread_yield;
+  timerAction.sa_flags  = SA_SIGINFO;
+  sigaction(SIGRTMIN, &timerAction, NULL);
+
+  deltaTime.it_interval.tv_sec = deltaTime.it_value.tv_sec = 0;
+  deltaTime.it_value.tv_nsec = deltaTime.it_interval.tv_nsec = 10LL;
+  timer_settime(&timer, 0, &deltaTime, NULL);
+}
+
+
+/* Unblocks the interrupts */
+void unblockInterrupts()
+{
+  sigset_t signal_set;
+  sigaddset(&signal_set, SIGRTMIN);
+  timer_delete(timer);
+  init_timer();
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+}
+
 
 /* This function send the current thread to the end of the queue. */
 int send_to_the_end()
@@ -45,6 +89,7 @@ int send_to_the_end()
 	
 	return old_index;
 }
+
 
 
 /* This function releases every thread wating for the [index] thread */
@@ -61,6 +106,7 @@ void free_waitings(int index)
 
 void nextThread()
 {
+    blockInterrupts();
     if(is_thread_queue_empty()) return;
 		printf("Running: nextThread\n");
     
@@ -76,7 +122,10 @@ void nextThread()
 		}
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
-    setcontext(&(thread_ready_queue[current_thread]->context)); 
+    
+    unblockInterrupts();
+    printf("Running \"%s\"\n", thread_ready_queue[current_thread]->name);
+    setcontext(&(thread_ready_queue[current_thread]->context));
 }
 
 /* Method that initializes the stack of a context */
@@ -106,35 +155,9 @@ int is_thread_done(int id)
   }
   return 1;
 }
-  
-/******************* END - NOT LISTED *******************/
 
 
-
-
-
-
-void dccthread_init(void (*func)(int), int param)
-{
-  THREAD_QUEUE_FINAL_POS=neueId=0;
-  current_thread=-1;
-  memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
-  
-  getcontext(&manager);
-  getcontext(&exiter);
-
-  manager.uc_link = &exiter;
-  setStackProperties(&manager);
-  setStackProperties(&exiter);
-  
-  makecontext(&manager, nextThread, 0);
-  dccthread_create("Main", func, param);
-  swapcontext(&exiter, &manager);
-  exit(EXIT_SUCCESS);
-}
-
-
-dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
+dccthread_t* non_blocking_thread_create(const char *name, void (*func)(int), int param)
 {
   if(is_thread_queue_full())
     return NULL;
@@ -160,8 +183,48 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
   return ret;
 }
 
+
+/******************* END - NOT LISTED *******************/
+
+
+
+
+
+
+void dccthread_init(void (*func)(int), int param)
+{
+  init_timer();
+  THREAD_QUEUE_FINAL_POS=neueId=0;
+  current_thread=-1;
+  memset(thread_ready_queue, 0, sizeof(dccthread_t *) * THREAD_QUEUE_SIZE);
+  
+  getcontext(&manager);
+  getcontext(&exiter);
+
+  manager.uc_link = &exiter;
+  setStackProperties(&manager);
+  setStackProperties(&exiter);
+  
+  makecontext(&manager, nextThread, 0);
+  non_blocking_thread_create("Main", func, param);
+  
+  swapcontext(&exiter, &manager);
+  exit(EXIT_SUCCESS);
+}
+
+
+dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
+{
+  blockInterrupts();
+  dccthread_t *ret = non_blocking_thread_create(name, func, param);
+  unblockInterrupts();
+  return ret;
+}
+
+
 void dccthread_yield(void)
 {
+  blockInterrupts();
   int old_index = send_to_the_end();
   printf("Swapping %d -> Manager\n", thread_ready_queue[old_index]->id);
   swapcontext(&(thread_ready_queue[old_index]->context), &manager);
@@ -169,14 +232,15 @@ void dccthread_yield(void)
 
 void dccthread_exit(void)
 {
+  blockInterrupts();
   printf("%d exited\n", thread_ready_queue[current_thread]->id);
 	free_waitings(current_thread);
-	//free_dcc_thread(current_thread);
   setcontext(&manager);
-}  
+} 
 
 void dccthread_wait(dccthread_t *tid)
 {
+  blockInterrupts();
 	if(tid==NULL)
 	{
 		printf("NULL pointer on dccthread_wait function\n");
@@ -189,6 +253,7 @@ void dccthread_wait(dccthread_t *tid)
   int index = send_to_the_end();
   thread_ready_queue[index]->waiting_for = tid->id;
 	swapcontext(&(thread_ready_queue[index]->context), &manager);
+  unblockInterrupts();
 }
 
 void dccthread_sleep(struct timespec ts)

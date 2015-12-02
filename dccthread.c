@@ -75,6 +75,23 @@ int send_to_the_end()
 }
 
 
+/* Method that blocks interrupts */
+void blockInterrupts()
+{
+  sigset_t signal_set;
+  sigaddset(&signal_set, SIGALRM);
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
+}
+
+
+/* Unblocks the interrupts */
+void unblockInterrupts()
+{
+  sigset_t signal_set;
+  sigaddset(&signal_set, SIGALRM);
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+}
+
 
 /* This function releases every thread wating for the [index] thread */
 void free_waitings(int index)
@@ -92,6 +109,7 @@ void nextThread()
 {
     is_it_manager_running=1;
     if(is_thread_queue_empty()) return;
+
 		printf("Running: nextThread\n");
     
 		while(1)
@@ -104,6 +122,12 @@ void nextThread()
 				send_to_the_end();
 			else break;
 		}
+    
+    /* 
+     * Here I unblock the interrupts just to let
+     * my check work properly on the yield method.
+     */
+    unblockInterrupts();
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
     
@@ -196,10 +220,11 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
 
 void dccthread_yield(void)
 {
-  
+  blockInterrupts();
   if(is_it_manager_running)
   {
-    eturn;
+    unblockInterrupts();
+    return;
   }
   is_it_manager_running=1;
   int old_index = send_to_the_end();

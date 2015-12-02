@@ -20,11 +20,11 @@ int neueId;
 
 
 /* TIMER VARIABLES */
-  struct sigevent timer_event;
-  struct sigaction timerAction, oldTimerAction;
-  struct sigaction oldTimerAction;
-  struct itimerspec deltaTime;
-  timer_t timer;
+struct sigevent timer_event;
+struct sigaction timerAction, oldTimerAction;
+struct itimerval deltaTime;
+timer_t timer;
+int is_it_manager_running;
 /* END - TIMER VARIABLES */
 
 
@@ -43,40 +43,24 @@ int is_thread_queue_full()
   return current_thread == (THREAD_QUEUE_FINAL_POS+1)%THREAD_QUEUE_SIZE;
 }
 
-/* Method that blocks interrupts */
-void blockInterrupts()
-{
-  sigset_t signal_set;
-  sigaddset(&signal_set, SIGRTMIN);
-  sigprocmask(SIG_BLOCK, &signal_set, NULL);
-}
-
 /* This method initialized the timer */
 void init_timer()
 {
   timer_event.sigev_notify = SIGEV_SIGNAL;
-  timer_event.sigev_signo = SIGRTMIN;
-  timer_create(CLOCK_PROCESS_CPUTIME_ID, &timer_event, &timer);
+  timer_event.sigev_signo = SIGALRM;
 
-  timerAction.sa_handler = (void (*)())dccthread_yield;
-  timerAction.sa_flags  = SA_SIGINFO;
-  sigaction(SIGRTMIN, &timerAction, NULL);
+  timerAction.sa_handler = dccthread_yield;
+  timerAction.sa_flags  = 0;
 
   deltaTime.it_interval.tv_sec = deltaTime.it_value.tv_sec = 0;
-  deltaTime.it_value.tv_nsec = deltaTime.it_interval.tv_nsec = 10LL;
+  deltaTime.it_value.tv_usec = deltaTime.it_interval.tv_usec = 100000LL;
+  
+  
+  sigaction(SIGALRM, &timerAction, &oldTimerAction);
+  timer_create(CLOCK_PROCESS_CPUTIME_ID, &timer_event, &timer);
   timer_settime(&timer, 0, &deltaTime, NULL);
 }
 
-
-/* Unblocks the interrupts */
-void unblockInterrupts()
-{
-  sigset_t signal_set;
-  sigaddset(&signal_set, SIGRTMIN);
-  timer_delete(timer);
-  init_timer();
-  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
-}
 
 
 /* This function send the current thread to the end of the queue. */
@@ -106,7 +90,7 @@ void free_waitings(int index)
 
 void nextThread()
 {
-    blockInterrupts();
+    is_it_manager_running=1;
     if(is_thread_queue_empty()) return;
 		printf("Running: nextThread\n");
     
@@ -123,8 +107,8 @@ void nextThread()
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
     
-    unblockInterrupts();
     printf("Running \"%s\"\n", thread_ready_queue[current_thread]->name);
+    is_it_manager_running=0;
     setcontext(&(thread_ready_queue[current_thread]->context));
 }
 
@@ -155,35 +139,6 @@ int is_thread_done(int id)
   }
   return 1;
 }
-
-
-dccthread_t* non_blocking_thread_create(const char *name, void (*func)(int), int param)
-{
-  if(is_thread_queue_full())
-    return NULL;
-  
-  if(thread_ready_queue[THREAD_QUEUE_FINAL_POS] != NULL)
-    free_dcc_thread(THREAD_QUEUE_FINAL_POS);
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS] = (dccthread_t *) malloc(sizeof(dccthread_t *));
-  getcontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context.uc_link = &manager;
-  setStackProperties(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
-  makecontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context), (void (*) (void)) func, 1, param);
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = name;
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->waiting_for=-1;
-  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->id = neueId;
-  
-  neueId++;
-  if(neueId < 0) neueId=0;
-
-  dccthread_t *ret = thread_ready_queue[THREAD_QUEUE_FINAL_POS];
-  THREAD_QUEUE_FINAL_POS++;
-  THREAD_QUEUE_FINAL_POS%=THREAD_QUEUE_SIZE;
-  
-  return ret;
-}
-
-
 /******************* END - NOT LISTED *******************/
 
 
@@ -206,7 +161,7 @@ void dccthread_init(void (*func)(int), int param)
   setStackProperties(&exiter);
   
   makecontext(&manager, nextThread, 0);
-  non_blocking_thread_create("Main", func, param);
+  dccthread_create("Main", func, param);
   
   swapcontext(&exiter, &manager);
   exit(EXIT_SUCCESS);
@@ -215,16 +170,38 @@ void dccthread_init(void (*func)(int), int param)
 
 dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
 {
-  blockInterrupts();
-  dccthread_t *ret = non_blocking_thread_create(name, func, param);
-  unblockInterrupts();
+  if(is_thread_queue_full())
+    return NULL;
+  
+  if(thread_ready_queue[THREAD_QUEUE_FINAL_POS] != NULL)
+    free_dcc_thread(THREAD_QUEUE_FINAL_POS);
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS] = (dccthread_t *) malloc(sizeof(dccthread_t *));
+  getcontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context.uc_link = &manager;
+  setStackProperties(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context));
+  makecontext(&(thread_ready_queue[THREAD_QUEUE_FINAL_POS]->context), (void (*) (void)) func, 1, param);
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->name = name;
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->waiting_for=-1;
+  thread_ready_queue[THREAD_QUEUE_FINAL_POS]->id = neueId;
+  
+  neueId++;
+  if(neueId < 0) neueId=0;
+
+  dccthread_t *ret = thread_ready_queue[THREAD_QUEUE_FINAL_POS];
+  THREAD_QUEUE_FINAL_POS++;
+  THREAD_QUEUE_FINAL_POS%=THREAD_QUEUE_SIZE;
   return ret;
 }
 
 
 void dccthread_yield(void)
 {
-  blockInterrupts();
+  
+  if(is_it_manager_running)
+  {
+    eturn;
+  }
+  is_it_manager_running=1;
   int old_index = send_to_the_end();
   printf("Swapping %d -> Manager\n", thread_ready_queue[old_index]->id);
   swapcontext(&(thread_ready_queue[old_index]->context), &manager);
@@ -232,7 +209,6 @@ void dccthread_yield(void)
 
 void dccthread_exit(void)
 {
-  blockInterrupts();
   printf("%d exited\n", thread_ready_queue[current_thread]->id);
 	free_waitings(current_thread);
   setcontext(&manager);
@@ -240,7 +216,6 @@ void dccthread_exit(void)
 
 void dccthread_wait(dccthread_t *tid)
 {
-  blockInterrupts();
 	if(tid==NULL)
 	{
 		printf("NULL pointer on dccthread_wait function\n");
@@ -253,7 +228,6 @@ void dccthread_wait(dccthread_t *tid)
   int index = send_to_the_end();
   thread_ready_queue[index]->waiting_for = tid->id;
 	swapcontext(&(thread_ready_queue[index]->context), &manager);
-  unblockInterrupts();
 }
 
 void dccthread_sleep(struct timespec ts)

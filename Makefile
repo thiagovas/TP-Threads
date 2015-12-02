@@ -1,5 +1,5 @@
 CC=gcc
-NUM_TESTS=1 2 3
+NUM_TESTS=1 2 3 4
 
 build: dccthread tests
 

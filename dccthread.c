@@ -49,7 +49,7 @@ void init_timer()
   timer_event.sigev_notify = SIGEV_SIGNAL;
   timer_event.sigev_signo = SIGALRM;
 
-  timerAction.sa_handler = dccthread_yield;
+  timerAction.sa_handler = (void (*)())dccthread_yield;
   timerAction.sa_flags  = 0;
 
   deltaTime.it_interval.tv_sec = deltaTime.it_value.tv_sec = 0;
@@ -110,15 +110,19 @@ void nextThread()
     is_it_manager_running=1;
     if(is_thread_queue_empty()) return;
 
+#ifdef DEBUG
 		printf("Running: nextThread\n");
-    
+#endif
+
 		while(1)
 		{
 			current_thread++;
 			current_thread%=THREAD_QUEUE_SIZE;
       if(is_thread_queue_empty()) return;
+#ifdef DEBUG
       printf("%s waiting for %d\n", thread_ready_queue[current_thread]->name, thread_ready_queue[current_thread]->waiting_for);
-			if(thread_ready_queue[current_thread]->waiting_for != -1)
+#endif
+      if(thread_ready_queue[current_thread]->waiting_for != -1)
 				send_to_the_end();
 			else break;
 		}
@@ -131,7 +135,9 @@ void nextThread()
     getcontext(&manager);
     makecontext(&manager, nextThread, 0);
     
+#ifdef DEBUG
     printf("Running \"%s\"\n", thread_ready_queue[current_thread]->name);
+#endif
     is_it_manager_running=0;
     setcontext(&(thread_ready_queue[current_thread]->context));
 }
@@ -220,22 +226,22 @@ dccthread_t * dccthread_create(const char *name, void (*func)(int), int param)
 
 void dccthread_yield(void)
 {
-  blockInterrupts();
-  if(is_it_manager_running)
-  {
-    unblockInterrupts();
-    return;
-  }
+  if(is_it_manager_running) return;
   is_it_manager_running=1;
+  blockInterrupts();
   int old_index = send_to_the_end();
+#ifdef DEBUG
   printf("Swapping %d -> Manager\n", thread_ready_queue[old_index]->id);
+#endif
   swapcontext(&(thread_ready_queue[old_index]->context), &manager);
 }
 
 void dccthread_exit(void)
 {
+#ifdef DEBUG
   printf("%d exited\n", thread_ready_queue[current_thread]->id);
-	free_waitings(current_thread);
+#endif
+  free_waitings(current_thread);
   setcontext(&manager);
 } 
 
@@ -243,12 +249,16 @@ void dccthread_wait(dccthread_t *tid)
 {
 	if(tid==NULL)
 	{
+#ifdef DEBUG
 		printf("NULL pointer on dccthread_wait function\n");
-		exit(EXIT_FAILURE);
+#endif
+    exit(EXIT_FAILURE);
 	}
-  
+
+#ifdef DEBUG
   printf("Asking %d to wait for %d\n", thread_ready_queue[current_thread]->id, tid->id);
-	if(is_thread_done(tid->id))
+#endif
+  if(is_thread_done(tid->id))
     return;
   int index = send_to_the_end();
   thread_ready_queue[index]->waiting_for = tid->id;

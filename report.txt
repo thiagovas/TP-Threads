@@ -13,7 +13,7 @@ Preencha as linhas abaixo com o nome e o e-mail dos integrantes do
 grupo.  Substitua XX pela contribuição de cada membro do grupo no
 desenvolvimento do trabalho.
 
-Thiago Vieira de Alcantara Silva <thiagovieiraas@gmail.com> XX%
+Thiago Vieira de Alcantara Silva <thiagovieiraas@gmail.com> Implementacao e Testes
 
 3. Referências bibliográficas
 

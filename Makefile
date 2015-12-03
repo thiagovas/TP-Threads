@@ -5,10 +5,10 @@ build: dccthread tests
 
 
 tests:
-	$(foreach var,$(NUM_TESTS),$(CC) test$(var).c dccthread.o -o test$(var) -Wall -lrt;)
+	$(foreach var,$(NUM_TESTS),$(CC) test$(var).c dccthread.o -o test$(var) -Wall -lrt -O;)
 
 dccthread:
-	$(CC) -c dccthread.c -o dccthread.o -Wall -lrt
+	$(CC) -c dccthread.c -o dccthread.o -Wall -lrt -O2
 
 clean:
 	rm -f *~

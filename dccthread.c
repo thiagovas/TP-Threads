@@ -22,7 +22,7 @@ int neueId;
 /* TIMER VARIABLES */
 struct sigevent timer_event;
 struct sigaction timerAction, oldTimerAction;
-struct itimerval deltaTime;
+struct itimerspec deltaTime;
 timer_t timer;
 sig_atomic_t is_it_manager_running;
 /* END - TIMER VARIABLES */
@@ -53,7 +53,7 @@ void init_timer()
   timerAction.sa_flags  = 0;
 
   deltaTime.it_interval.tv_sec = deltaTime.it_value.tv_sec = 0;
-  deltaTime.it_value.tv_usec = deltaTime.it_interval.tv_usec = 100000LL;
+  deltaTime.it_value.tv_nsec = deltaTime.it_interval.tv_nsec = 10000000LL;
   
   
   sigaction(SIGALRM, &timerAction, &oldTimerAction);

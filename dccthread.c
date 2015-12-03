@@ -24,7 +24,7 @@ struct sigevent timer_event;
 struct sigaction timerAction, oldTimerAction;
 struct itimerval deltaTime;
 timer_t timer;
-int is_it_manager_running;
+sig_atomic_t is_it_manager_running;
 /* END - TIMER VARIABLES */
 
 

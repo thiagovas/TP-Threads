@@ -15,11 +15,28 @@ desenvolvimento do trabalho.
 
 Thiago Vieira de Alcantara Silva <thiagovieiraas@gmail.com> Implementacao e Testes
 
+
 3. Referências bibliográficas
 
-Adicione aqui as referências bibliográficas.
+Usei um sig_atomic_t como flag seguindo
+  http://stackoverflow.com/questions/15398556/switching-thread-contexts-with-sigalrm
+
+Usei SIGSTKSZ como tamanho da pilha seguindo
+  http://www.gnu.org/software/libc/manual/html_node/Signal-Stack.html
+
 
 4. Estruturas de dados
 
-Descreva e justifique as estruturas de dados e algoritmos utilizados
-em sua solução.
+A unica estrutura de dados que uso eh um vetor, onde emulo
+uma fila. Ando no vetor de maneira circular, sendo assim
+a fila fica cheia somente quando o index final da fila,
+menos um, eh igual ao index atual.
+
+Para controlar situacoes onde as threads nao estao no modo
+pronto, uso algumas flags. Preferi esta maneira somente
+por ser mais facil de implementar e depurar o codigo,
+alem de ser mais simples de entender.
+
+Para evitar condicoes de corrida, segui o primeiro link
+das referencias bibliograficas, minimizando o numero de instrucoes
+em partes criticas do codigo.
